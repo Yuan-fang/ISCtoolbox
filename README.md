@@ -1,4 +1,4 @@
-# inter-subject similarity/correlation
+# Inter-subject similarity/correlation
 
 This is a tool for calculating inter-subject correlation based on the resting-state global brain connectivity pattern. As the required memory for this calculation is far exceeding the affordance of modern home PCs, the excellent [hdf5 format](https://support.hdfgroup.org/HDF5/whatishdf5.html) is applied to save the data into hard disk and later read them sequentially for computation. This approach trades off between memory usage and computational efficiency. It also requires large space of hard disk (fortunately hard disk is cheap!). For a single subject with 40000 voxels, it typically requires about 13 Gb hard disk storage.
 
