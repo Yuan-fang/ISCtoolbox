@@ -5,21 +5,21 @@ This is a tool for calculating inter-subject correlation based on the resting-st
 
 # Usage in ipython console
 
-## create a dataset object
+### create a dataset object
 ds = ISCspace.DataSet(data_dir, mask_dir)
 
-## computing global connectivity metric
+### computing global connectivity metric
 conn = ISCspace.Connectivity(ds).compute()
 
-## save the connectivity in hdf5 format
+### save the connectivity in hdf5 format
 conn.save(output_dir)
 
-## create isc object
+### create isc object
 isc =ISCspace.Intersubj(hdf5_list)
 
-## compute isc statistic (t-test or permutation)
+### compute isc statistic (t-test or permutation)
 isc.compute()
 
-## save into nii.gz image (t-value, p-value, and individual metric)
+### save into nii.gz image (t-value, p-value, and individual metric)
 isc.save(result_dir)
 
