@@ -19,7 +19,7 @@ isc = ISCspace.Intersubj(hdf5_list)
 * ***compute isc***  
 isc.compute()
 
-* ***save the isc data in hdf5 format ***
+* ***save the isc data in hdf5 format***
 isc.save(result_dir)
 
 * ***create stat object***
