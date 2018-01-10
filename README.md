@@ -22,11 +22,11 @@ isc.compute()
 * ***save the isc data in hdf5 format***  
 isc.save(result_dir)
 
-* ***create stat object***
+* ***create stat object***  
 stat = ISCspace.Statistic(data_hdf, group, method='ttest')
 
-* ***statistical test (t-test or permutation)***
+* ***statistical test (t-test or permutation)***  
 stat.compute()
 
-* ***save results into nii.gz image***
+* ***save results into nii.gz image***  
 stat.save(mask, output_dir)
