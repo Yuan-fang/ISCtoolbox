@@ -147,12 +147,13 @@ class Connectivity(object):
 
 
 class Intersubj(object):
-    def __init__(self, hdf_list, fnode_img):
+    def __init__(self, base_dir, sessid, fnode_img):
         """
 
         Parameters
         ----------
-        hdf_list: a list of subjects
+        base_dir: directory for hdf5 data
+        sessid: a text of subjects
         fnode_img: a mask nifti file
 
         Returns
@@ -162,7 +163,7 @@ class Intersubj(object):
         # subjects list
         try:
             with open(hdf_list, 'r') as f:
-                file_dir = [line.strip() for line in f]
+                file_dir = [os.path.join(base_dir, line.strip(), 'conn.hdf') for line in f]
             self.list = file_dir
         except:
             raise UserDefinedException('A text file of hdf file shall be provided!')
