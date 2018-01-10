@@ -14,11 +14,19 @@ conn = ISCspace.Connectivity(ds).compute()
 conn.save(output_dir)
 
 * ***create isc object***  
-isc =ISCspace.Intersubj(hdf5_list)
+isc = ISCspace.Intersubj(hdf5_list)
 
-* ***compute isc statistic (t-test or permutation)***  
+* ***compute isc***  
 isc.compute()
 
-* ***save into nii.gz image (t-value, p-value, and individual metric)***  
+* ***save the isc data in hdf5 format ***
 isc.save(result_dir)
 
+* ***create stat object***
+stat = ISCspace.Statistic(data_hdf, group, method='ttest')
+
+* ***statistical test (t-test or permutation)***
+stat.compute()
+
+* ***save results into nii.gz image***
+stat.save(mask, output_dir)
