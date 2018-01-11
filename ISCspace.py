@@ -267,6 +267,10 @@ class Statistic(object):
         class B:
             p = []
             t = []
+            p_left = []
+            p_right = []
+            t_left = []
+            t_right = []
 
         self.patient = B()
         self.control = B()
@@ -300,7 +304,7 @@ class Statistic(object):
         ct_2d = np.nanmean(self.data[np.ix_(self.svox, ct_mas, ct_mas)], axis=2)
         inter_2d = np.nanmean(self.data[np.ix_(self.svox, dp_mas, ct_mas)], axis=2)
 
-        # statistical testing
+        # statistical testing: 2-sided
         # 1 sample t test for patient ~= 0
         self.patient.t, self.patient.p = stats.ttest_1samp(dp_2d, 0, axis=1)
         # 1 sample t test for control ~= 0
@@ -309,6 +313,18 @@ class Statistic(object):
         self.variance_diff.t, self.variance_diff.p = stats.ttest_ind(dp_2d, ct_2d, axis=1)
         # independent two-sample t test for patient_relative_control - control
         self.pattern_diff.t, self.pattern_diff.p = stats.ttest_ind(inter_2d, ct_2d, axis=1)
+        
+        # statistical testing: left-sided
+        self.patient.p_left = (self.patient.p/2) * (self.patient.t < 0)
+        self.control.p_left = (self.control.p/2) * (self.control.t < 0)
+        self.variance_diff.p_left = (self.variance_diff.p/2) * (self.variance_diff.t < 0)
+        self.pattern_diff.p_left = (self.pattern_diff.p/2) * (self.pattern_diff.t < 0)
+        
+        # statistical testing: right-sided
+        self.patient.p_right = (self.patient.p/2) * (self.patient.t > 0)
+        self.control.p_right = (self.control.p/2) * (self.control.t > 0)
+        self.variance_diff.p_right = (self.variance_diff.p/2) * (self.variance_diff.t > 0)
+        self.pattern_diff.p_right = (self.pattern_diff.p/2) * (self.pattern_diff.t > 0)
 
         elapse = time.time() - t1
 
@@ -351,15 +367,30 @@ class Statistic(object):
                 t_pattern_diff[n, :] = stats.ttest_ind(inter_2d_perms, ct_2d_perms, axis=1)[0]
                 n += 1
 
-            # statistical testing: 2-tailed
-            self.patient.p = np.mean(t_patient > abs(self.patient.t[np.newaxis, :]), axis=0) * 2
-            self.control.p = np.mean(t_control > abs(self.control.t[np.newaxis, :]), axis=0) * 2
-            self.variance_diff.p = np.mean(t_variance_diff > abs(self.variance_diff.t[np.newaxis, :]), axis=0) * 2
-            self.pattern_diff.p = np.mean(t_pattern_diff > abs(self.pattern_diff.t[np.newaxis, :]), axis=0) * 2
+            # statistical testing: right-sided
+            self.patient.p_right = np.mean(t_patient >= abs(self.patient.t[np.newaxis, :]), axis=0)
+            self.control.p_right = np.mean(t_control >= abs(self.control.t[np.newaxis, :]), axis=0)
+            self.variance_diff.p_right = np.mean(t_variance_diff >= abs(self.variance_diff.t[np.newaxis, :]), axis=0)
+            self.pattern_diff.p_right = np.mean(t_pattern_diff >= abs(self.pattern_diff.t[np.newaxis, :]), axis=0)
+            
+            # statistical testing: left-sided
+            self.patient.p_left = np.mean(t_patient <= -abs(self.patient.t[np.newaxis, :]), axis=0)
+            self.control.p_left = np.mean(t_control <= -abs(self.control.t[np.newaxis, :]), axis=0)
+            self.variance_diff.p_left = np.mean(t_variance_diff <= -abs(self.variance_diff.t[np.newaxis, :]), axis=0)
+            self.pattern_diff.p_left = np.mean(t_pattern_diff <= -abs(self.pattern_diff.t[np.newaxis, :]), axis=0)
+            
+            # statistical testing: 2-sided
+            self.patient.p = self.patient.p_right + self.patient.p_left
+            self.control.p = self.control.p_right + self.control.p_left
+            self.variance_diff.p = self.variance_diff.p_right + self.variance_diff.p_left
+            self.pattern_diff.p = self.pattern_diff.p_right + self.pattern_diff.p_left
 
         # results combine; i: condition (subjects) j: voxel
         self.tvalue = np.stack((self.patient.t, self.control.t, self.variance_diff.t, self.pattern_diff.t))
-        self.pvalue = np.stack((self.patient.p, self.control.p, self.variance_diff.p, self.pattern_diff.p))
+        self.pvalue = np.stack((self.patient.p_left, self.patient.p_right, self.patient.p, 
+                                self.control.p_left, self.control.p_right, self.control.p,
+                                self.variance_diff.p_left, self.variance_diff.p_right, self.variance_diff.p, 
+                                self.pattern_diff.p_lef, self.pattern_diff.p_right, self.pattern_diff.p))
         patients = tuple(np.transpose(inter_2d))
         self.value = np.stack(patients)
 
@@ -389,6 +420,8 @@ class Statistic(object):
         for i in xrange(self.tvalue.shape[0]):
             # note the "advance indexing"
             tvalue[ncoords[:, 0], ncoords[:, 1], ncoords[:, 2], i] = self.tvalue[i, :]
+         
+        for i in xrange(self.pvalue.shape[0]):
             pvalue[ncoords[:, 0], ncoords[:, 1], ncoords[:, 2], i] = self.pvalue[i, :]
 
         for i in xrange(self.value.shape[0]):
