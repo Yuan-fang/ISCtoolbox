@@ -280,7 +280,9 @@ class Statistic(object):
         # results container will be later filled
         self.tvalue = []
         self.pvalue = []
-        self.value = []
+        self.patients_value = []
+        self.controls_value = []
+        self.patients_relative_value = []
 
     def compute(self, m=None):
         """
@@ -391,8 +393,18 @@ class Statistic(object):
                                 self.control.p_left, self.control.p_right, self.control.p,
                                 self.variance_diff.p_left, self.variance_diff.p_right, self.variance_diff.p, 
                                 self.pattern_diff.p_lef, self.pattern_diff.p_right, self.pattern_diff.p))
-        patients = tuple(np.transpose(inter_2d))
-        self.value = np.stack(patients)
+        
+        # individual level map
+        patients = tuple(np.transpose(dp_2d))
+        self.patients_value = np.stack(patients)
+        
+        control = tuple(np.transpose(ct_2d))
+        self.controls_value = np.stack(controls)
+        
+        patients_relative = tuple(np.transpose(inter_2d))
+        self.patients_relative_value = np.stack(patients_relative)
+        
+        
 
     def save(self, fnode_img, out_dir='.'):
         """
@@ -415,7 +427,10 @@ class Statistic(object):
 
         tvalue = np.zeros((dim[0], dim[1], dim[2], self.tvalue.shape[0]))
         pvalue = np.zeros((dim[0], dim[1], dim[2], self.pvalue.shape[0]))
-        value = np.zeros((dim[0], dim[1], dim[2], self.value.shape[0]))
+        patients_value = np.zeros((dim[0], dim[1], dim[2], self.patients_value.shape[0]))
+        controls_value = np.zeros((dim[0], dim[1], dim[2], self.controls_value.shape[0]))
+        patients_relative_value = np.zeros((dim[0], dim[1], dim[2], self.patients_relative_value.shape[0]))
+       
 
         for i in xrange(self.tvalue.shape[0]):
             # note the "advance indexing"
@@ -424,19 +439,27 @@ class Statistic(object):
         for i in xrange(self.pvalue.shape[0]):
             pvalue[ncoords[:, 0], ncoords[:, 1], ncoords[:, 2], i] = self.pvalue[i, :]
 
-        for i in xrange(self.value.shape[0]):
-            value[ncoords[:, 0], ncoords[:, 1], ncoords[:, 2], i] = self.value[i, :]
+        for i in xrange(self.patients_value.shape[0]):
+            patients_value[ncoords[:, 0], ncoords[:, 1], ncoords[:, 2], i] = self.patients_value[i, :]
+            
+        for i in xrange(self.controls_value.shape[0]):
+            controls_value[ncoords[:, 0], ncoords[:, 1], ncoords[:, 2], i] = self.controls_value[i, :]
+         
+        for i in xrange(self.patients_relative_value.shape[0]):
+            patients_relative_value[ncoords[:, 0], ncoords[:, 1], ncoords[:, 2], i] = self.patients_relative_value[i, :]
 
         # remove nan
         tvalue[np.isnan(tvalue)] = 0
         pvalue[np.isnan(pvalue)] = 0
-        value[np.isnan(value)] = 0
+        patients_value[np.isnan(value)] = 0
+        controls_value[np.isnan(value)] = 0
+        patients_relative_value[np.isnan(value)] = 0
 
         # save t-value
         header['cal_max'] = tvalue.max()
         header['cal_min'] = tvalue.min()
         tvalue_img = nib.Nifti1Image(tvalue, None, header)
-        nib.save(tvalue_img, os.path.join(out_dir, '_'.join(('tvalue', self.method)) + '.nii.gz'))
+        nib.save(tvalue_img, os.path.join(out_dir, 'tvalue') + '.nii.gz'))
 
         # save p-value
         header['cal_max'] = pvalue.max()
@@ -444,8 +467,20 @@ class Statistic(object):
         pvalue_img = nib.Nifti1Image(pvalue, None, header)
         nib.save(pvalue_img, os.path.join(out_dir, '_'.join(('pvalue', self.method)) + '.nii.gz'))
 
-        # save individual value
-        header['cal_max'] = value.max()
-        header['cal_min'] = value.min()
-        value_img = nib.Nifti1Image(value, None, header)
-        nib.save(value_img, os.path.join(out_dir, '_'.join(('value', self.method)) + '.nii.gz'))
+        # save individual patients maps
+        header['cal_max'] = patients_value.max()
+        header['cal_min'] = patients_value.min()
+        value_img = nib.Nifti1Image(patients_value, None, header)
+        nib.save(value_img, os.path.join(out_dir, 'patients_value') + '.nii.gz'))
+        
+        # save indiviudal controls maps
+        header['cal_max'] = controls_value.max()
+        header['cal_min'] = controls_value.min()
+        value_img = nib.Nifti1Image(controls_value, None, header)
+        nib.save(value_img, os.path.join(out_dir, 'controls_value') + '.nii.gz'))
+        
+        # save individual patients relative controls maps
+        header['cal_max'] = patients_relative_value.max()
+        header['cal_min'] = patients_relative_value.min()
+        value_img = nib.Nifti1Image(patients_relative_value, None, header)
+        nib.save(value_img, os.path.join(out_dir, 'patients_relative_value') + '.nii.gz'))
