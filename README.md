@@ -23,9 +23,9 @@ isc.compute()
 isc.save(result_dir)
 
 * ***create stat object***  
-stat = ISCspace.Statistic(data_hdf, group, method='ttest')
+stat = ISCspace.Statistic(data_hdf, group)
 
-* ***statistical test (t-test or permutation)***  
+* ***compute individual-based similarity metric***  
 stat.compute()
 
 * ***save results into nii.gz image***  
