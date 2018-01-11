@@ -3,8 +3,6 @@ import numpy as np
 import h5py
 import os
 from scipy.spatial import distance
-from scipy import stats
-import time
 
 
 class UserDefinedException(Exception):
@@ -162,7 +160,7 @@ class Intersubj(object):
         """
         # subjects list
         try:
-            with open(hdf_list, 'r') as f:
+            with open(sessid, 'r') as f:
                 file_dir = [os.path.join(base_dir, line.strip(), 'conn.hdf') for line in f]
             self.list = file_dir
         except:
@@ -223,25 +221,18 @@ class Intersubj(object):
 
 
 class Statistic(object):
-    def __init__(self, data_hdf, group, method='ttest'):
+    def __init__(self, data_hdf, group):
         """
 
         Parameters
         ----------
         data_hdf: a hdf file for 3-D array of inter-subject correlation [nx: voxels; ny(z): subjects]
         group: a file or 1-D array indexing group labels: 0 - patients; 1 - controls
-        method: string, statistical method: "ttest" or "permutation", if not specified, "ttest" is used.
 
         Returns
         -------
 
         """
-        # check if method legal
-        if method is not 'ttest' and method is not 'permutation':
-            raise UserDefinedException("Method shall be 'ttest' or 'permutation'!")
-
-        self.method = method
-
         # check if group legal
         try:
             # when group is a 1-d numpy array
@@ -263,39 +254,20 @@ class Statistic(object):
         # sequence of voxels
         self.svox = np.arange(self.nvox)
 
-        # nested properties
-        class B:
-            p = []
-            t = []
-            p_left = []
-            p_right = []
-            t_left = []
-            t_right = []
-
-        self.patient = B()
-        self.control = B()
-        self.variance_diff = B()
-        self.pattern_diff = B()
-
         # results container will be later filled
-        self.tvalue = []
-        self.pvalue = []
         self.patients_value = []
         self.controls_value = []
         self.patients_relative_value = []
 
-    def compute(self, m=None):
+    def compute(self):
         """
 
         Parameters
         ----------
-        m: number of permutations
         Returns
         -------
 
         """
-        t1 = time.time()
-
         # mask for patients and controls.
         dp_mas = (self.grp != 1)
         ct_mas = (self.grp != 0)
@@ -306,105 +278,15 @@ class Statistic(object):
         ct_2d = np.nanmean(self.data[np.ix_(self.svox, ct_mas, ct_mas)], axis=2)
         inter_2d = np.nanmean(self.data[np.ix_(self.svox, dp_mas, ct_mas)], axis=2)
 
-        # statistical testing: 2-sided
-        # 1 sample t test for patient ~= 0
-        self.patient.t, self.patient.p = stats.ttest_1samp(dp_2d, 0, axis=1)
-        # 1 sample t test for control ~= 0
-        self.control.t, self.control.p = stats.ttest_1samp(ct_2d, 0, axis=1)
-        # independent two-sample t test for patient - control ~= 0
-        self.variance_diff.t, self.variance_diff.p = stats.ttest_ind(dp_2d, ct_2d, axis=1)
-        # independent two-sample t test for patient_relative_control - control
-        self.pattern_diff.t, self.pattern_diff.p = stats.ttest_ind(inter_2d, ct_2d, axis=1)
-        
-        # statistical testing: left-sided
-        self.patient.p_left = (self.patient.p/2) * (self.patient.t < 0)
-        self.control.p_left = (self.control.p/2) * (self.control.t < 0)
-        self.variance_diff.p_left = (self.variance_diff.p/2) * (self.variance_diff.t < 0)
-        self.pattern_diff.p_left = (self.pattern_diff.p/2) * (self.pattern_diff.t < 0)
-        
-        # statistical testing: right-sided
-        self.patient.p_right = (self.patient.p/2) * (self.patient.t > 0)
-        self.control.p_right = (self.control.p/2) * (self.control.t > 0)
-        self.variance_diff.p_right = (self.variance_diff.p/2) * (self.variance_diff.t > 0)
-        self.pattern_diff.p_right = (self.pattern_diff.p/2) * (self.pattern_diff.t > 0)
-
-        elapse = time.time() - t1
-
-        # permutation test
-        if self.method is 'permutation':
-
-            # number of permutations
-            try:
-                if m is None:
-                    m = 1000
-                print "{:d} permutations will begin, estimated time cost is {:.2f} hours ...".format(m, elapse*m/3600.0)
-                # delay for 5 seconds for users to decide to go on
-                time.sleep(5)
-            except:
-                raise UserDefinedException("m shall be an integer")
-
-            # preallocate memory for later use. i: number of permutations; j: voxels
-            t_patient = np.empty((m, self.nvox))
-            t_control = np.empty((m, self.nvox))
-            t_variance_diff = np.empty((m, self.nvox))
-            t_pattern_diff = np.empty((m, self.nvox))
-
-            # loops for correlation. This may be very slow and can be later improved.
-            n = 0
-            while n < m:
-                print "permutation {:d}".format(n+1)
-                perms = np.random.permutation(self.grp)
-                # mask for patients and controls
-                dp_mas_perms = (perms != 1)
-                ct_mas_perms = (perms != 0)
-                # calculate within groups and between-group subject-based similarity,
-                #  resulting 2-D array: i, voxel, j, subject
-                dp_2d_perms = np.nanmean(self.data[np.ix_(self.svox, dp_mas_perms, dp_mas_perms)], axis=2)
-                ct_2d_perms = np.nanmean(self.data[np.ix_(self.svox, ct_mas_perms, ct_mas_perms)], axis=2)
-                inter_2d_perms = np.nanmean(self.data[np.ix_(self.svox, dp_mas_perms, ct_mas_perms)], axis=2)
-                # statistics
-                t_patient[n, :] = stats.ttest_1samp(dp_2d_perms, 0, axis=1)[0]
-                t_control[n, :] = stats.ttest_1samp(ct_2d_perms, 0, axis=1)[0]
-                t_variance_diff[n, :] = stats.ttest_ind(dp_2d_perms, ct_2d_perms, axis=1)[0]
-                t_pattern_diff[n, :] = stats.ttest_ind(inter_2d_perms, ct_2d_perms, axis=1)[0]
-                n += 1
-
-            # statistical testing: right-sided
-            self.patient.p_right = np.mean(t_patient >= abs(self.patient.t[np.newaxis, :]), axis=0)
-            self.control.p_right = np.mean(t_control >= abs(self.control.t[np.newaxis, :]), axis=0)
-            self.variance_diff.p_right = np.mean(t_variance_diff >= abs(self.variance_diff.t[np.newaxis, :]), axis=0)
-            self.pattern_diff.p_right = np.mean(t_pattern_diff >= abs(self.pattern_diff.t[np.newaxis, :]), axis=0)
-            
-            # statistical testing: left-sided
-            self.patient.p_left = np.mean(t_patient <= -abs(self.patient.t[np.newaxis, :]), axis=0)
-            self.control.p_left = np.mean(t_control <= -abs(self.control.t[np.newaxis, :]), axis=0)
-            self.variance_diff.p_left = np.mean(t_variance_diff <= -abs(self.variance_diff.t[np.newaxis, :]), axis=0)
-            self.pattern_diff.p_left = np.mean(t_pattern_diff <= -abs(self.pattern_diff.t[np.newaxis, :]), axis=0)
-            
-            # statistical testing: 2-sided
-            self.patient.p = self.patient.p_right + self.patient.p_left
-            self.control.p = self.control.p_right + self.control.p_left
-            self.variance_diff.p = self.variance_diff.p_right + self.variance_diff.p_left
-            self.pattern_diff.p = self.pattern_diff.p_right + self.pattern_diff.p_left
-
-        # results combine; i: condition (subjects) j: voxel
-        self.tvalue = np.stack((self.patient.t, self.control.t, self.variance_diff.t, self.pattern_diff.t))
-        self.pvalue = np.stack((self.patient.p_left, self.patient.p_right, self.patient.p, 
-                                self.control.p_left, self.control.p_right, self.control.p,
-                                self.variance_diff.p_left, self.variance_diff.p_right, self.variance_diff.p, 
-                                self.pattern_diff.p_lef, self.pattern_diff.p_right, self.pattern_diff.p))
-        
         # individual level map
         patients = tuple(np.transpose(dp_2d))
         self.patients_value = np.stack(patients)
-        
-        control = tuple(np.transpose(ct_2d))
+
+        controls = tuple(np.transpose(ct_2d))
         self.controls_value = np.stack(controls)
-        
+
         patients_relative = tuple(np.transpose(inter_2d))
         self.patients_relative_value = np.stack(patients_relative)
-        
-        
 
     def save(self, fnode_img, out_dir='.'):
         """
@@ -425,62 +307,38 @@ class Statistic(object):
         dim = node_img.header.get_data_shape()
         ncoords = np.transpose(np.nonzero(node))
 
-        tvalue = np.zeros((dim[0], dim[1], dim[2], self.tvalue.shape[0]))
-        pvalue = np.zeros((dim[0], dim[1], dim[2], self.pvalue.shape[0]))
         patients_value = np.zeros((dim[0], dim[1], dim[2], self.patients_value.shape[0]))
         controls_value = np.zeros((dim[0], dim[1], dim[2], self.controls_value.shape[0]))
         patients_relative_value = np.zeros((dim[0], dim[1], dim[2], self.patients_relative_value.shape[0]))
-       
-
-        for i in xrange(self.tvalue.shape[0]):
-            # note the "advance indexing"
-            tvalue[ncoords[:, 0], ncoords[:, 1], ncoords[:, 2], i] = self.tvalue[i, :]
-         
-        for i in xrange(self.pvalue.shape[0]):
-            pvalue[ncoords[:, 0], ncoords[:, 1], ncoords[:, 2], i] = self.pvalue[i, :]
 
         for i in xrange(self.patients_value.shape[0]):
             patients_value[ncoords[:, 0], ncoords[:, 1], ncoords[:, 2], i] = self.patients_value[i, :]
-            
+
         for i in xrange(self.controls_value.shape[0]):
             controls_value[ncoords[:, 0], ncoords[:, 1], ncoords[:, 2], i] = self.controls_value[i, :]
-         
+
         for i in xrange(self.patients_relative_value.shape[0]):
             patients_relative_value[ncoords[:, 0], ncoords[:, 1], ncoords[:, 2], i] = self.patients_relative_value[i, :]
 
         # remove nan
-        tvalue[np.isnan(tvalue)] = 0
-        pvalue[np.isnan(pvalue)] = 0
-        patients_value[np.isnan(value)] = 0
-        controls_value[np.isnan(value)] = 0
-        patients_relative_value[np.isnan(value)] = 0
-
-        # save t-value
-        header['cal_max'] = tvalue.max()
-        header['cal_min'] = tvalue.min()
-        tvalue_img = nib.Nifti1Image(tvalue, None, header)
-        nib.save(tvalue_img, os.path.join(out_dir, 'tvalue') + '.nii.gz'))
-
-        # save p-value
-        header['cal_max'] = pvalue.max()
-        header['cal_min'] = pvalue.min()
-        pvalue_img = nib.Nifti1Image(pvalue, None, header)
-        nib.save(pvalue_img, os.path.join(out_dir, '_'.join(('pvalue', self.method)) + '.nii.gz'))
+        patients_value[np.isnan(patients_value)] = 0
+        controls_value[np.isnan(controls_value)] = 0
+        patients_relative_value[np.isnan(patients_relative_value)] = 0
 
         # save individual patients maps
         header['cal_max'] = patients_value.max()
         header['cal_min'] = patients_value.min()
-        value_img = nib.Nifti1Image(patients_value, None, header)
-        nib.save(value_img, os.path.join(out_dir, 'patients_value') + '.nii.gz'))
-        
-        # save indiviudal controls maps
+        patients_value_img = nib.Nifti1Image(patients_value, None, header)
+        nib.save(patients_value_img, os.path.join(out_dir, 'patients_value') + '.nii.gz')
+
+        # save individual controls maps
         header['cal_max'] = controls_value.max()
         header['cal_min'] = controls_value.min()
-        value_img = nib.Nifti1Image(controls_value, None, header)
-        nib.save(value_img, os.path.join(out_dir, 'controls_value') + '.nii.gz'))
-        
+        controls_value_img = nib.Nifti1Image(controls_value, None, header)
+        nib.save(controls_value_img, os.path.join(out_dir, 'controls_value') + '.nii.gz')
+
         # save individual patients relative controls maps
         header['cal_max'] = patients_relative_value.max()
         header['cal_min'] = patients_relative_value.min()
-        value_img = nib.Nifti1Image(patients_relative_value, None, header)
-        nib.save(value_img, os.path.join(out_dir, 'patients_relative_value') + '.nii.gz'))
+        patients_relative_value_img = nib.Nifti1Image(patients_relative_value, None, header)
+        nib.save(patients_relative_value_img, os.path.join(out_dir, 'patients_relative_value') + '.nii.gz')
